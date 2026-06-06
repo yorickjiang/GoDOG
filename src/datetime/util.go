@@ -2,7 +2,6 @@ package datetime
 
 import (
 	"fmt"
-	"strings"
 )
 
 /***** FUNCTION ********************************/
@@ -31,26 +30,36 @@ func ymd2ord(year int32, month, day uint8) int32 {
 		panic(fmt.Sprintf("day must be in 1..%d", maxDim))
 	}
 
-	var refYear int32 = _ORD_REF_YEAR
-	var n400 int32 = 0
-	var dby int32
-	var dbm int16
+	var refYear int32 = year/400*400 + 1 // The year just after the nearest year divisible by 400 before 'year'
 
-	if year < refYear {
-		n400 = (refYear-year)/400 + 1
-		refYear -= n400 * 400
+	if year < 0 {
+		refYear -= 400
 	}
 
-	// number of days before January 1st of year, considering 01-Jan-1601 as ordinal 1
-	dby = (year-refYear)*365 + (year-refYear)/4 - (year-refYear)/100 + (year-refYear)/400
+	// number of days before January 1st of year
+	var dby int32 = (year-refYear)*365 + (year-refYear)/4 - (year-refYear)/100 + (year-refYear)/400
 	// number of days in year preceding first day of month
-	dbm = int16(_DAYS_BEFORE_MONTH[month-1])
+	var dbm uint16 = uint16(_DAYS_BEFORE_MONTH[month-1])
 
 	if isLeapYear(year) && month > 2 {
 		dbm++
 	}
 
-	return dby + int32(dbm) + int32(day) - n400*(400*365+97)
+	var ord int32 = int32(dby) + int32(dbm) + int32(day)
+	var refYear0 int32 = _ORD0_YEAR/400*400 + 1 // The year just after the nearest year divisible by 400 before 'year'
+
+	if _ORD0_YEAR < 0 {
+		refYear0 -= 400
+	}
+
+	dby = (_ORD0_YEAR-refYear0)*365 + (_ORD0_YEAR-refYear0)/4 - (_ORD0_YEAR-refYear0)/100 + (_ORD0_YEAR-refYear0)/400
+	dbm = uint16(_DAYS_BEFORE_MONTH[_ORD0_MONTH-1])
+
+	if isLeapYear(_ORD0_YEAR) && _ORD0_MONTH > 2 {
+		dbm++
+	}
+
+	return ord + (refYear-refYear0)/400*(400*365+97) - int32(dby) - int32(dbm) - int32(_ORD0_DAY)
 }
 
 /***********************************************/
@@ -62,7 +71,18 @@ func ord2ymd(ord int32) (year int32, month, day uint8) {
 	var di400y int32 = 4*di100y + 1
 
 	var n400, n100, n4, n1 int32
-	var refYear int32 = _ORD_REF_YEAR
+	var refYear int32 = _ORD0_YEAR/400*400 + 1 // The year just after the nearest year divisible by 400 before 'year'
+
+	if _ORD0_YEAR < 0 {
+		refYear -= 400
+	}
+
+	ord += (_ORD0_YEAR-refYear)*365 + (_ORD0_YEAR-refYear)/4 - (_ORD0_YEAR-refYear)/100 + (_ORD0_YEAR-refYear)/400
+	ord += int32(_DAYS_BEFORE_MONTH[_ORD0_MONTH-1]) + int32(_ORD0_DAY)
+
+	if isLeapYear(_ORD0_YEAR) && _ORD0_MONTH > 2 {
+		ord++
+	}
 
 	if ord <= 0 {
 		n400 = (1-ord)/(400*365+97) + 1
@@ -88,7 +108,7 @@ func ord2ymd(ord int32) (year int32, month, day uint8) {
 		day = 31
 	} else {
 		month = uint8((ord + 50) >> 5)
-		var dbm int16 = int16(_DAYS_BEFORE_MONTH[month-1])
+		var dbm uint16 = uint16(_DAYS_BEFORE_MONTH[month-1])
 
 		if isLeapYear(year) && month > 2 {
 			dbm++
@@ -96,7 +116,7 @@ func ord2ymd(ord int32) (year int32, month, day uint8) {
 
 		if int32(dbm) > ord {
 			month -= 1
-			dbm -= int16(_DAYS_IN_MONTH[month-1])
+			dbm -= uint16(_DAYS_IN_MONTH[month-1])
 
 			if isLeapYear(year) && month == 2 {
 				dbm--
@@ -169,18 +189,6 @@ func toTAI(t *Time) {
 	}
 
 	t.sys = TIME_SYS_TAI
-}
-
-/***********************************************/
-
-func ParseTimeSys(strSys string) TimeSys {
-	strSys = strings.ToUpper(strSys)
-
-	if value, ok := Name2TimeSys[strSys]; ok {
-		return value
-	} else {
-		return TIME_SYS_GPST
-	}
 }
 
 /***********************************************/

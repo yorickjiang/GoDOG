@@ -26,8 +26,8 @@ type Date struct {
 /***** FUNCTION ********************************/
 
 // The default constructor.
-func NewDate() Date {
-	return Date{1}
+func NewDate(ord int32) Date {
+	return Date{ord}
 }
 
 /***********************************************/
@@ -59,7 +59,37 @@ func YearDoy2Date(year int32, doy uint16) Date {
 /***********************************************/
 
 func Mjd2Date(mjd int32) Date {
-	return Date{mjd - _MJD_ORD1 + 1}
+	return Date{mjd - _ORD0_MJD + 1}
+}
+
+/***********************************************/
+
+func (d *Date) AddEq(days int32) {
+	d.ord += days
+}
+
+/***********************************************/
+
+func (d *Date) SubEq(days int32) {
+	d.ord -= days
+}
+
+/***********************************************/
+
+func (d Date) Add(days int32) Date {
+	return Date{d.ord + days}
+}
+
+/***********************************************/
+
+func (d Date) Sub(days int32) Date {
+	return Date{d.ord - days}
+}
+
+/***********************************************/
+
+func (d Date) SubDate(other Date) int32 {
+	return d.ord - other.ord
 }
 
 /***********************************************/
@@ -100,32 +130,71 @@ func (d Date) Le(other Date) bool {
 
 /***********************************************/
 
-func (d Date) Add(days int32) Date {
-	return Date{d.ord + days}
+func (d Date) Ord() int32 {
+	return d.ord
 }
 
 /***********************************************/
 
-func (d Date) Sub(days int32) Date {
-	return Date{d.ord - days}
+func (d Date) Date() (year int32, month, day uint8) {
+	year, month, day = ord2ymd(d.ord)
+	return
 }
 
 /***********************************************/
 
-func (d *Date) AddEq(days int32) {
-	d.ord += days
+func (d Date) Year() (year int32) {
+	year, _, _ = ord2ymd(d.ord)
+	return
 }
 
 /***********************************************/
 
-func (d *Date) SubEq(days int32) {
-	d.ord -= days
+func (d Date) Month() (month uint8) {
+	_, month, _ = ord2ymd(d.ord)
+	return
 }
 
 /***********************************************/
 
-func (d Date) SubDate(other Date) int32 {
-	return d.ord - other.ord
+func (d Date) Day() (day uint8) {
+	_, _, day = ord2ymd(d.ord)
+	return
+}
+
+/***********************************************/
+
+func (d Date) YearDoy() (year int32, doy uint16) {
+	var month, day uint8
+	year, month, day = ord2ymd(d.ord)
+	doy = _DAYS_BEFORE_MONTH[month-1] + uint16(day)
+
+	if isLeapYear(year) && month > 2 {
+		doy++
+	}
+
+	return
+}
+
+/***********************************************/
+
+func (d Date) DayOfYear() (doy uint16) {
+	var year int32
+	var month, day uint8
+	year, month, day = ord2ymd(d.ord)
+	doy = _DAYS_BEFORE_MONTH[month-1] + uint16(day)
+
+	if isLeapYear(year) && month > 2 {
+		doy++
+	}
+
+	return
+}
+
+/***********************************************/
+
+func (d Date) Mjd() int32 {
+	return d.ord + _ORD0_MJD
 }
 
 /***********************************************/
@@ -229,77 +298,6 @@ func (d Date) Format(format string) string {
 	}
 
 	return result
-}
-
-/***********************************************/
-
-func (d Date) Ordinal() int32 {
-	return d.ord
-}
-
-/***********************************************/
-
-func (d Date) Date() (year int32, month, day uint8) {
-	year, month, day = ord2ymd(d.ord)
-	return
-}
-
-/***********************************************/
-
-func (d Date) Year() (year int32) {
-	year, _, _ = ord2ymd(d.ord)
-	return
-}
-
-/***********************************************/
-
-func (d Date) Month() (month uint8) {
-	_, month, _ = ord2ymd(d.ord)
-	return
-}
-
-/***********************************************/
-
-func (d Date) Day() (day uint8) {
-	_, _, day = ord2ymd(d.ord)
-	return
-}
-
-/***********************************************/
-
-func (d Date) YearDoy() (year int32, doy uint16) {
-	var month, day uint8
-	year, month, day = ord2ymd(d.ord)
-	doy = _DAYS_BEFORE_MONTH[month-1]
-
-	if isLeapYear(year) && month > 2 {
-		doy++
-	}
-
-	doy += uint16(day)
-	return
-}
-
-/***********************************************/
-
-func (d Date) DayOfYear() (doy uint16) {
-	var year int32
-	var month, day uint8
-	year, month, day = ord2ymd(d.ord)
-	doy = _DAYS_BEFORE_MONTH[month-1]
-
-	if isLeapYear(year) && month > 2 {
-		doy++
-	}
-
-	doy += uint16(day)
-	return
-}
-
-/***********************************************/
-
-func (d Date) Mjd() int32 {
-	return d.ord - 1 + _MJD_ORD1
 }
 
 /***********************************************/

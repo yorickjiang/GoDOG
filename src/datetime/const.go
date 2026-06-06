@@ -24,7 +24,7 @@ const (
 /***********************************************/
 
 const (
-	TIME_EPSILON   float64 = 0.1e-6
+	TIME_EPSILON   float64 = 1e-9
 	MJD_J2000      float64 = 51544.5
 	JD_MJD0        float64 = 2400000.5
 	DELTA_TAI_TT   float64 = -32.184
@@ -76,51 +76,16 @@ var UTC_LEAP_SEC []LeapSecond = []LeapSecond{
 
 /***********************************************/
 
-type TimeSys uint8
-
-const (
-	TIME_SYS_NONE     TimeSys = iota // used when Time represents a time interval rather than an epoch
-	TIME_SYS_TAI                     // international atomic time
-	TIME_SYS_TT                      // terrestrial time
-	TIME_SYS_UTC                     // coordinate universal time
-	TIME_SYS_GPST                    // GPS time
-	TIME_SYS_GLONASST                // GLONASS time
-	TIME_SYS_BDT                     // BDS time
-	TIME_SYS_GST                     // Galileo time
-)
-
-var TimeSys2Name map[TimeSys]string = map[TimeSys]string{
-	TIME_SYS_NONE:     "NONE",
-	TIME_SYS_TAI:      "TAI",
-	TIME_SYS_TT:       "TT",
-	TIME_SYS_UTC:      "UTC",
-	TIME_SYS_GPST:     "GPST",
-	TIME_SYS_GLONASST: "GLONASST",
-	TIME_SYS_BDT:      "BDT",
-	TIME_SYS_GST:      "GST",
-}
-
-var Name2TimeSys map[string]TimeSys = map[string]TimeSys{
-	"NONE":     TIME_SYS_NONE,
-	"TAI":      TIME_SYS_TAI,
-	"TT":       TIME_SYS_TT,
-	"UTC":      TIME_SYS_UTC,
-	"GPST":     TIME_SYS_GPST,
-	"GLONASST": TIME_SYS_GLONASST,
-	"BDT":      TIME_SYS_BDT,
-	"GST":      TIME_SYS_GST,
-}
-
-/***********************************************/
-
 var (
 	_DAYS_IN_MONTH     [12]uint8  = [12]uint8{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
 	_DAYS_BEFORE_MONTH [12]uint16 = [12]uint16{0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334}
 )
 
 const (
-	_MJD_ORD1     int32 = -94187 // mjd of 01-Jan-1601
-	_ORD_REF_YEAR int32 = 1601
+	_ORD0_MJD   int32 = 0 // mjd of ordinal 0
+	_ORD0_YEAR  int32 = 1858
+	_ORD0_MONTH uint8 = 11
+	_ORD0_DAY   uint8 = 17
 )
 
 /***********************************************/

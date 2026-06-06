@@ -48,8 +48,13 @@ func ParseResourceJson(rsFile string, rsMap map[string]Resource) error {
 
 	for kw, val := range jTmp {
 		var rs Resource
+		var ok bool
 
-		rs.TimeSys = datetime.ParseTimeSys(val.TimeSys)
+		rs.TimeSys, ok = datetime.Str2TimeSys(val.TimeSys)
+
+		if !ok { // default to GPST
+			rs.TimeSys = datetime.TIME_SYS_GPST
+		}
 
 		if val.Interval <= 0 {
 			return fmt.Errorf(`invalid "interval" of resource "%s"`, kw)

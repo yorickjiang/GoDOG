@@ -172,10 +172,10 @@ func (cfg *Config) ParseJson(cfgFile string) error {
 
 		ts = cfg.StTime.Sub(datetime.Seconds2Time(float64(task.Backward)))
 		te = cfg.EdTime.Add(datetime.Seconds2Time(float64(task.Forward)))
-		ts.ConvertSelf(rsMap[task.Type].TimeSys)
-		te.ConvertSelf(rsMap[task.Type].TimeSys)
+		ts.Convert(rsMap[task.Type].TimeSys)
+		te.Convert(rsMap[task.Type].TimeSys)
 		dt = datetime.Seconds2Time(float64(rsMap[task.Type].Interval))
-		ordDec = float64(int32(ts.OrdTotal()/dt.OrdTotal())) * dt.OrdTotal()
+		ordDec = float64(int32(ts.Ord()/dt.Ord())) * dt.Ord()
 		ordInt = int32(ordDec)
 		ordDec -= float64(ordInt)
 
@@ -183,7 +183,7 @@ func (cfg *Config) ParseJson(cfgFile string) error {
 			ordDec = 0
 		}
 
-		ts = datetime.Ord2Time(ts.Sys(), ordInt, ordDec)
+		ts = datetime.NewTime(ts.Sys(), ordInt, ordDec)
 
 		for t = ts; t.Le(te); t.AddEq(dt) {
 			if len(task.Targets) != 0 {

@@ -226,10 +226,10 @@ func process() error {
 		for _, task := range cfg.Tasks {
 			ts = cfg.StTime.Sub(datetime.Seconds2Time(float64(task.Backward)))
 			te = cfg.EdTime.Add(datetime.Seconds2Time(float64(task.Forward)))
-			ts.ConvertSelf(rsMap[task.Type].TimeSys)
-			te.ConvertSelf(rsMap[task.Type].TimeSys)
+			ts.Convert(rsMap[task.Type].TimeSys)
+			te.Convert(rsMap[task.Type].TimeSys)
 			dt = datetime.Seconds2Time(float64(rsMap[task.Type].Interval))
-			ordDec = float64(int32(ts.OrdTotal()/dt.OrdTotal())) * dt.OrdTotal()
+			ordDec = float64(int32(ts.Ord()/dt.Ord())) * dt.Ord()
 			ordInt = int32(ordDec)
 			ordDec -= float64(ordInt)
 
@@ -237,7 +237,7 @@ func process() error {
 				ordDec = 0
 			}
 
-			ts = datetime.Ord2Time(ts.Sys(), ordInt, ordDec)
+			ts = datetime.NewTime(ts.Sys(), ordInt, ordDec)
 			job.Type, job.Unzip, job.Force, job.Index, job.IsTmp = task.Type, task.IfUnzip, task.IfForce, 0, false
 
 			for job.Time = ts; job.Time.Le(te); job.Time.AddEq(dt) {

@@ -24,17 +24,36 @@ type Time struct {
 
 /***** FUNCTION ********************************/
 
-// The default constructor.
-func NewTime() Time {
-	return Time{TIME_SYS_NONE, 1, 0}
+func (t *Time) judgeOrd() {
+	var tmp int32 = int32(math.Floor(t.ordDec))
+	t.ordInt += tmp
+	t.ordDec -= float64(tmp)
+
+	if math.Abs(t.ordDec)*float64(DAY2SECOND) < TIME_EPSILON {
+		t.ordDec = 0
+	}
+
+	if math.Abs(t.ordDec-1)*float64(DAY2SECOND) < TIME_EPSILON {
+		t.ordInt += 1
+		t.ordDec = 0
+	}
+}
+
+/***********************************************/
+
+// Construct using ordinal.
+func NewTime(sys TimeSys, ordInt int32, ordDec float64) Time {
+	t := Time{sys, ordInt, ordDec}
+	t.judgeOrd()
+	return t
 }
 
 /***********************************************/
 
 func DateTime2Time(sys TimeSys, year int32, month, day, hour, minute uint8, second float64) Time {
-	if sys == TIME_SYS_NONE {
-		panic(fmt.Sprintf("time system cannot be '%s'", TimeSys2Name[TIME_SYS_NONE]))
-	}
+	// if sys == TIME_SYS_NONE {
+	// 	panic(fmt.Sprintf("time system cannot be '%s'", TimeSys2Str(sys)))
+	// }
 
 	if hour > 23 {
 		panic("hour must be in 0..23")
@@ -45,7 +64,7 @@ func DateTime2Time(sys TimeSys, year int32, month, day, hour, minute uint8, seco
 	}
 
 	ordInt := ymd2ord(year, month, day)
-	mjd := ordInt - 1 + _MJD_ORD1
+	mjd := ordInt + _ORD0_MJD
 	var leapVal int8 = 0
 	var leapTot int16 = 0
 
@@ -75,7 +94,7 @@ func DateTime2Time(sys TimeSys, year int32, month, day, hour, minute uint8, seco
 	}
 
 	var ordDec float64 = float64(hour)*HOUR2DAY + float64(minute)*MINUTE2DAY + (second+float64(leapTot))*SECOND2DAY
-	return Time{sys, ordInt, ordDec}
+	return NewTime(sys, ordInt, ordDec)
 }
 
 /***********************************************/
@@ -91,9 +110,8 @@ func YearDoySod2Time(sys TimeSys, year int32, doy uint16, sod float64) Time {
 		panic(fmt.Sprintf("day of year must be in 1..%d", maxDoy))
 	}
 
-	ordInt := ymd2ord(year, 1, 1)
-	ordInt += int32(doy) - 1
-	mjd := ordInt - 1 + _MJD_ORD1
+	ordInt := ymd2ord(year, 1, 1) + int32(doy) - 1
+	mjd := ordInt + _ORD0_MJD
 	var leapVal int8 = 0
 	var leapTot int16 = 0
 
@@ -110,17 +128,19 @@ func YearDoySod2Time(sys TimeSys, year int32, doy uint16, sod float64) Time {
 		panic(fmt.Sprintf("sod must be in [0, %d)", maxSod))
 	}
 
-	return Time{sys, ordInt, (sod + float64(leapTot)) * SECOND2DAY}
+	return NewTime(sys, ordInt, (sod+float64(leapTot))*SECOND2DAY)
 }
 
 /***********************************************/
 
 func WeekSow2Time(sys TimeSys, week int32, sow float64) Time {
-	dt := Time{TIME_SYS_NONE, week * int32(WEEK2DAY), sow * SECOND2DAY}
+	if sow < 0.0 || sow >= float64(WEEK2SECOND) {
+		panic(fmt.Sprintf("sow must be in [0, %d)", WEEK2SECOND))
+	}
+
+	dt := NewTime(sys, week*int32(WEEK2DAY), sow*SECOND2DAY)
 
 	switch sys {
-	case TIME_SYS_NONE:
-		return dt
 	case TIME_SYS_GPST:
 		return TIME_GPST0.Add(dt)
 	case TIME_SYS_BDT:
@@ -128,7 +148,7 @@ func WeekSow2Time(sys TimeSys, week int32, sow float64) Time {
 	case TIME_SYS_GST:
 		return TIME_GST0.Add(dt)
 	default:
-		panic(fmt.Sprintf("week/sow are not defined for '%s'", TimeSys2Name[sys]))
+		return dt
 	}
 }
 
@@ -149,16 +169,8 @@ func Now2Time(sys TimeSys) Time {
 /***********************************************/
 
 func Mjd2Time(sys TimeSys, mjd float64) Time {
-	var dec float64
-
-	if mjd < 0 {
-		dec = -0.1
-	} else {
-		dec = 0.1
-	}
-
-	mjdInt := int32(math.Floor(mjd) + dec) // to prevent trunction
-	ordInt := mjdInt - _MJD_ORD1 + 1
+	mjdInt := int32(math.Floor(mjd))
+	ordInt := mjdInt + _ORD0_MJD
 	var leapVal int8 = 0
 	var leapTot int16 = 0
 
@@ -171,44 +183,29 @@ func Mjd2Time(sys TimeSys, mjd float64) Time {
 
 	maxSod := int32(DAY2SECOND) + int32(leapVal)
 	ordDec := ((mjd-float64(mjdInt))*float64(maxSod) + float64(leapTot)) * SECOND2DAY
-	return Time{sys, ordInt, ordDec}
-}
-
-/***********************************************/
-
-func Ord2Time(sys TimeSys, ordInt int32, ordDec float64) Time {
-	return Time{sys, ordInt, ordDec}
+	return NewTime(sys, ordInt, ordDec)
 }
 
 /***********************************************/
 
 func Seconds2Time(seconds float64) Time {
-	var dec float64
-
-	if seconds < 0 {
-		dec = -0.1
-	} else {
-		dec = 0.1
-	}
-
-	secTmp := seconds * SECOND2DAY
-	ordInt := int32(math.Floor(secTmp) + dec) // to prevent trunction
-	return Time{TIME_SYS_NONE, ordInt, secTmp - float64(ordInt)}
+	tmp := seconds * SECOND2DAY
+	ordInt := int32(math.Floor(tmp))
+	return NewTime(TIME_SYS_NONE, ordInt, tmp-float64(ordInt))
 }
 
 /***********************************************/
 
-func Str2Time(str string) Time {
+func Str2Time(str string) (t Time) {
 	subs := strings.Fields(str)
 	var sys TimeSys
 	var err error
-	var t Time
 
 	if len(subs) == 0 {
 		panic("invalid time format")
 	}
 
-	sys, ok := Name2TimeSys[strings.ToUpper(subs[0])]
+	sys, ok := Str2TimeSys(strings.ToUpper(subs[0]))
 
 	if !ok {
 		panic("invalid time system")
@@ -307,37 +304,57 @@ func Str2Time(str string) Time {
 
 /***********************************************/
 
-func (t *Time) ConvertSelf(sys TimeSys) {
+func (t *Time) Convert(sys TimeSys) {
 	if sys == t.sys {
 		return
 	}
 
-	if t.sys == TIME_SYS_TAI {
-		fromTAI(t, sys)
-	} else if sys == TIME_SYS_TAI {
-		toTAI(t)
-	} else {
-		toTAI(t)
-		fromTAI(t, sys)
+	if t.sys == TIME_SYS_NONE || sys == TIME_SYS_NONE {
+		t.sys = sys
+		return
 	}
+
+	// Convert to TAI first.
+	switch t.sys {
+	case TIME_SYS_TT:
+		t.AddEq(Seconds2Time(DELTA_TAI_TT))
+	case TIME_SYS_UTC:
+		t.AddEq(Seconds2Time(DELTA_TAI_UTC))
+	case TIME_SYS_GPST:
+		t.AddEq(Seconds2Time(DELTA_TAI_GPST))
+	case TIME_SYS_GLONASST:
+		t.AddEq(Seconds2Time(DELTA_TAI_UTC - DELTA_GLOT_UTC))
+	case TIME_SYS_BDT:
+		t.AddEq(Seconds2Time(DELTA_TAI_BDT))
+	case TIME_SYS_GST:
+		t.AddEq(Seconds2Time(DELTA_TAI_GST))
+	}
+
+	t.sys = TIME_SYS_TAI
+
+	// Convert from TAI to the target system.
+	switch sys {
+	case TIME_SYS_TT:
+		t.SubEq(Seconds2Time(DELTA_TAI_TT))
+	case TIME_SYS_UTC:
+		t.SubEq(Seconds2Time(DELTA_TAI_UTC))
+	case TIME_SYS_GPST:
+		t.SubEq(Seconds2Time(DELTA_TAI_GPST))
+	case TIME_SYS_GLONASST:
+		t.SubEq(Seconds2Time(DELTA_TAI_UTC - DELTA_GLOT_UTC))
+	case TIME_SYS_BDT:
+		t.SubEq(Seconds2Time(DELTA_TAI_BDT))
+	case TIME_SYS_GST:
+		t.SubEq(Seconds2Time(DELTA_TAI_GST))
+	}
+
+	t.sys = sys
 }
 
 /***********************************************/
 
-func (t Time) ConvertNew(sys TimeSys) Time {
-	if sys == t.sys {
-		return t
-	}
-
-	if t.sys == TIME_SYS_TAI {
-		fromTAI(&t, sys)
-	} else if sys == TIME_SYS_TAI {
-		toTAI(&t)
-	} else {
-		toTAI(&t)
-		fromTAI(&t, sys)
-	}
-
+func (t Time) Converted(sys TimeSys) Time {
+	t.Convert(sys)
 	return t
 }
 
@@ -350,7 +367,63 @@ func Positive(t Time) Time {
 /***********************************************/
 
 func Negative(t Time) Time {
-	return Time{t.sys, -t.ordInt, -t.ordDec}
+	return NewTime(t.sys, -t.ordInt, -t.ordDec)
+}
+
+/***********************************************/
+
+func (t *Time) AddEq(other Time) {
+	// if other.sys != TIME_SYS_NONE {
+	// 	panic(fmt.Sprintf("time system of the second operand is not '%s'", TimeSys2Name[TIME_SYS_NONE]))
+	// }
+
+	t.ordDec += other.ordDec
+	t.ordInt += other.ordInt
+	t.judgeOrd()
+}
+
+/***********************************************/
+
+func (t *Time) SubEq(other Time) {
+	// if other.sys != TIME_SYS_NONE {
+	// 	panic(fmt.Sprintf("time system of the second operand is not '%s'", TimeSys2Name[TIME_SYS_NONE]))
+	// }
+
+	t.ordDec -= other.ordDec
+	t.ordInt -= other.ordInt
+	t.judgeOrd()
+}
+
+/***********************************************/
+
+func (t *Time) MulEq(c float64) {
+	// if t.sys != TIME_SYS_NONE {
+	// 	panic(fmt.Sprintf("time system is not '%s'", TimeSys2Name[TIME_SYS_NONE]))
+	// }
+
+	tmp := float64(t.ordInt) * c
+	t.ordInt = int32(math.Floor(tmp))
+	tmp -= float64(t.ordInt)
+
+	t.ordDec *= c
+	t.ordDec += tmp
+	t.judgeOrd()
+}
+
+/***********************************************/
+
+func (t *Time) DivEq(c float64) {
+	// if t.sys != TIME_SYS_NONE {
+	// 	panic(fmt.Sprintf("time system is not '%s'", TimeSys2Name[TIME_SYS_NONE]))
+	// }
+
+	tmp := float64(t.ordInt) / c
+	t.ordInt = int32(math.Floor(tmp))
+	tmp -= float64(t.ordInt)
+
+	t.ordDec /= c
+	t.ordDec += tmp
+	t.judgeOrd()
 }
 
 /***********************************************/
@@ -367,19 +440,10 @@ func (t Time) Sub(other Time) Time {
 		t.SubEq(other)
 		return t
 	} else {
-		if t.sys == TIME_SYS_NONE {
-			panic(fmt.Sprintf("when time system of the second operand is not '%s', "+
-				"time system of the first operand cannot be '%s'",
-				TimeSys2Name[TIME_SYS_NONE],
-				TimeSys2Name[TIME_SYS_NONE]))
-		}
-
-		t1 := t.ConvertNew(TIME_SYS_TAI)
-		t2 := other.ConvertNew(TIME_SYS_TAI)
-		t1.ConvertSelf(TIME_SYS_NONE)
-		t2.ConvertSelf(TIME_SYS_NONE)
-		t1.SubEq(t2)
-		return t1
+		t.Convert(other.sys)
+		t.SubEq(other)
+		t.sys = TIME_SYS_NONE
+		return t
 	}
 }
 
@@ -399,140 +463,16 @@ func (t Time) Div(c float64) Time {
 
 /***********************************************/
 
-func (t *Time) AddEq(other Time) {
-	if other.sys != TIME_SYS_NONE {
-		panic(fmt.Sprintf("time system of the second operand is not '%s'", TimeSys2Name[TIME_SYS_NONE]))
-	}
-
-	t.ordDec += other.ordDec
-	t.ordInt += other.ordInt
-	var dec float64
-
-	if t.ordDec < 0 {
-		dec = -0.1
-	} else {
-		dec = 0.1
-	}
-
-	ordInt := int32(math.Floor(t.ordDec) + dec)
-	t.ordDec -= float64(ordInt)
-	t.ordInt += ordInt
-}
-
-/***********************************************/
-
-func (t *Time) SubEq(other Time) {
-	if other.sys != TIME_SYS_NONE {
-		panic(fmt.Sprintf("time system of the second operand is not '%s'", TimeSys2Name[TIME_SYS_NONE]))
-	}
-
-	t.ordDec -= other.ordDec
-	t.ordInt -= other.ordInt
-	var dec float64
-
-	if t.ordDec < 0 {
-		dec = -0.1
-	} else {
-		dec = 0.1
-	}
-
-	ordInt := int32(math.Floor(t.ordDec) + dec)
-	t.ordDec -= float64(ordInt)
-	t.ordInt += ordInt
-}
-
-/***********************************************/
-
-func (t *Time) MulEq(c float64) {
-	if t.sys != TIME_SYS_NONE {
-		panic(fmt.Sprintf("time system is not '%s'", TimeSys2Name[TIME_SYS_NONE]))
-	}
-
-	tmpDec := float64(t.ordInt) * c
-	var dec float64
-
-	if tmpDec < 0 {
-		dec = -0.1
-	} else {
-		dec = 0.1
-	}
-
-	t.ordInt = int32(math.Floor(tmpDec) + dec)
-	tmpDec -= float64(t.ordInt)
-
-	t.ordDec *= c
-	t.ordDec += tmpDec
-
-	if t.ordDec < 0 {
-		dec = -0.1
-	} else {
-		dec = 0.1
-	}
-
-	tmpInt := int32(math.Floor(t.ordDec) + dec)
-	t.ordDec -= float64(tmpInt)
-	t.ordInt += tmpInt
-}
-
-/***********************************************/
-
-func (t *Time) DivEq(c float64) {
-	if t.sys != TIME_SYS_NONE {
-		panic(fmt.Sprintf("time system is not '%s'", TimeSys2Name[TIME_SYS_NONE]))
-	}
-
-	tmpDec := float64(t.ordInt) / c
-	var dec float64
-
-	if tmpDec < 0 {
-		dec = -0.1
-	} else {
-		dec = 0.1
-	}
-
-	t.ordInt = int32(math.Floor(tmpDec) + dec)
-	tmpDec -= float64(t.ordInt)
-
-	t.ordDec /= c
-	t.ordDec += tmpDec
-
-	if t.ordDec < 0 {
-		dec = -0.1
-	} else {
-		dec = 0.1
-	}
-
-	tmpInt := int32(math.Floor(t.ordDec) + dec)
-	t.ordDec -= float64(tmpInt)
-	t.ordInt += tmpInt
-}
-
-/***********************************************/
-
 func (t Time) Gt(other Time) bool {
-	if t.sys == other.sys {
-		return float64(t.ordInt-other.ordInt)+(t.ordDec-other.ordDec) > TIME_EPSILON/86400.0
-	} else if t.sys == TIME_SYS_NONE || other.sys == TIME_SYS_NONE {
-		panic(fmt.Sprintf("time of time system '%s' cannot be compared with time of other time systems",
-			TimeSys2Name[TIME_SYS_NONE]))
-	} else {
-		other.ConvertSelf(t.sys)
-		return float64(t.ordInt-other.ordInt)+(t.ordDec-other.ordDec) > TIME_EPSILON/86400.0
-	}
+	t.Convert(other.sys)
+	return float64(t.ordInt-other.ordInt)+(t.ordDec-other.ordDec) > TIME_EPSILON/float64(DAY2SECOND)
 }
 
 /***********************************************/
 
 func (t Time) Lt(other Time) bool {
-	if t.sys == other.sys {
-		return float64(t.ordInt-other.ordInt)+(t.ordDec-other.ordDec) < -TIME_EPSILON/86400.0
-	} else if t.sys == TIME_SYS_NONE || other.sys == TIME_SYS_NONE {
-		panic(fmt.Sprintf("time of time system '%s' cannot be compared with time of other time systems",
-			TimeSys2Name[TIME_SYS_NONE]))
-	} else {
-		other.ConvertSelf(t.sys)
-		return float64(t.ordInt-other.ordInt)+(t.ordDec-other.ordDec) < -TIME_EPSILON/86400.0
-	}
+	t.Convert(other.sys)
+	return float64(t.ordInt-other.ordInt)+(t.ordDec-other.ordDec) < -TIME_EPSILON/float64(DAY2SECOND)
 }
 
 /***********************************************/
@@ -557,6 +497,351 @@ func (t Time) Ge(other Time) bool {
 
 func (t Time) Le(other Time) bool {
 	return !t.Gt(other)
+}
+
+/***********************************************/
+
+func (t Time) Sys() TimeSys {
+	return t.sys
+}
+
+/***********************************************/
+
+func (t Time) OrdParts() (int32, float64) {
+	return t.ordInt, t.ordDec
+}
+
+/***********************************************/
+
+func (t Time) OrdInt() int32 {
+	return t.ordInt
+}
+
+/***********************************************/
+
+func (t Time) OrdDec() float64 {
+	return t.ordDec
+}
+
+/***********************************************/
+
+func (t Time) Ord() float64 {
+	return float64(t.ordInt) + t.ordDec
+}
+
+/***********************************************/
+
+func (t Time) DateTime() (year int32, month, day, hour, minute uint8, second float64) {
+	mjd := t.ordInt + _ORD0_MJD
+	var leapVal int8 = 0
+	var leapTot int16 = 0
+	ordInt := t.ordInt
+	ordDec := t.ordDec
+	var sod float64
+	var maxSod int32
+
+	for {
+		switch t.sys {
+		case TIME_SYS_UTC:
+			leapVal, leapTot = getLeapSec(mjd)
+		case TIME_SYS_GLONASST:
+			leapVal, leapTot = getLeapSec(mjd - 1)
+		}
+
+		maxSod = int32(DAY2SECOND) + int32(leapVal)
+		sod = ordDec*float64(DAY2SECOND) - float64(leapTot)
+
+		if sod < -TIME_EPSILON {
+			mjd--
+			ordInt--
+			ordDec += 1
+		} else if sod > float64(maxSod)-TIME_EPSILON {
+			mjd++
+			ordInt++
+			ordDec -= 1
+		} else {
+			break
+		}
+	}
+
+	year, month, day = ord2ymd(ordInt)
+	hour = 0
+
+	for i := uint8(0); i < DAY2HOUR; i++ {
+		leapTot = 0
+
+		if t.sys == TIME_SYS_UTC && i == 23 {
+			leapTot = int16(leapVal)
+		} else if t.sys == TIME_SYS_GLONASST && i == 2 {
+			leapTot = int16(leapVal)
+		}
+
+		hour = i
+
+		if sod-float64(HOUR2SECOND)-float64(leapTot) < -TIME_EPSILON {
+			break
+		}
+
+		sod -= float64(HOUR2SECOND) + float64(leapTot)
+	}
+
+	minute = 0
+
+	for i := uint8(0); i < HOUR2MINUTE; i++ {
+		leapTot = 0
+
+		if t.sys == TIME_SYS_UTC && hour == 23 && i == 59 {
+			leapTot = int16(leapVal)
+		} else if t.sys == TIME_SYS_GLONASST && hour == 2 && i == 59 {
+			leapTot = int16(leapVal)
+		}
+
+		minute = i
+
+		if sod-float64(MINUTE2SECOND)-float64(leapTot) < -TIME_EPSILON {
+			break
+		}
+
+		sod -= float64(MINUTE2SECOND) + float64(leapTot)
+	}
+
+	second = sod
+
+	if math.Abs(second) < TIME_EPSILON {
+		second = 0.0
+	}
+
+	return
+}
+
+/***********************************************/
+
+func (t Time) Date() (year int32, month, day uint8) {
+	year, month, day, _, _, _ = t.DateTime()
+	return
+}
+
+/***********************************************/
+
+func (t Time) Time() (hour, minute uint8, second float64) {
+	_, _, _, hour, minute, second = t.DateTime()
+	return
+}
+
+/***********************************************/
+
+func (t Time) Year() (year int32) {
+	year, _, _, _, _, _ = t.DateTime()
+	return year
+}
+
+/***********************************************/
+
+func (t Time) Month() (month uint8) {
+	_, month, _, _, _, _ = t.DateTime()
+	return
+}
+
+/***********************************************/
+
+func (t Time) Day() (day uint8) {
+	_, _, day, _, _, _ = t.DateTime()
+	return
+}
+
+/***********************************************/
+
+func (t Time) Hour() (hour uint8) {
+	_, _, _, hour, _, _ = t.DateTime()
+	return
+}
+
+/***********************************************/
+
+func (t Time) Minute() (minute uint8) {
+	_, _, _, _, minute, _ = t.DateTime()
+	return
+}
+
+/***********************************************/
+
+func (t Time) Second() (second float64) {
+	_, _, _, _, _, second = t.DateTime()
+	return
+}
+
+/***********************************************/
+
+func (t Time) YearDoySod() (year int32, doy uint16, sod float64) {
+	mjd := t.ordInt + _ORD0_MJD
+	var leapVal int8 = 0
+	var leapTot int16 = 0
+	ordInt := t.ordInt
+	ordDec := t.ordDec
+	var maxSod int32
+
+	for {
+		switch t.sys {
+		case TIME_SYS_UTC:
+			leapVal, leapTot = getLeapSec(mjd)
+		case TIME_SYS_GLONASST:
+			leapVal, leapTot = getLeapSec(mjd - 1)
+		}
+
+		maxSod = int32(DAY2SECOND) + int32(leapVal)
+		sod = ordDec*float64(DAY2SECOND) - float64(leapTot)
+
+		if sod < -TIME_EPSILON {
+			mjd--
+			ordInt--
+			ordDec += 1
+		} else if sod > float64(maxSod)-TIME_EPSILON {
+			mjd++
+			ordInt++
+			ordDec -= 1
+		} else {
+			break
+		}
+	}
+
+	year, _, _ = ord2ymd(ordInt)
+	doy = uint16(ordInt - ymd2ord(year, 1, 1) + 1)
+
+	if math.Abs(sod) < TIME_EPSILON {
+		sod = 0.0
+	}
+
+	return
+}
+
+/***********************************************/
+
+func (t Time) DayOfYear() (doy uint16) {
+	_, doy, _ = t.YearDoySod()
+	return
+}
+
+/***********************************************/
+
+func (t Time) SecondOfDay() (sod float64) {
+	_, _, sod = t.YearDoySod()
+	return
+}
+
+/***********************************************/
+
+func (t Time) WeekSow() (week int32, sow float64) {
+	var dt Time
+
+	switch t.sys {
+	case TIME_SYS_GPST:
+		dt = t.Sub(TIME_GPST0)
+	case TIME_SYS_BDT:
+		dt = t.Sub(TIME_BDT0)
+	case TIME_SYS_GST:
+		dt = t.Sub(TIME_GST0)
+	default:
+		dt = t
+	}
+
+	week = dt.ordInt / int32(WEEK2DAY)
+	sow = float64(dt.ordInt%int32(WEEK2DAY))*float64(DAY2SECOND) + dt.ordDec*float64(DAY2SECOND)
+
+	if sow < -TIME_EPSILON {
+		sow += float64(WEEK2SECOND)
+		week -= 1
+	}
+
+	if math.Abs(sow) < TIME_EPSILON {
+		sow = 0.0
+	}
+
+	return
+}
+
+/***********************************************/
+
+func (t Time) Week() (week int32) {
+	week, _ = t.WeekSow()
+	return
+}
+
+/***********************************************/
+
+func (t Time) DayOfWeek() (dow uint8) {
+	_, sow := t.WeekSow()
+	dow = uint8(sow * float64(SECOND2DAY))
+	return
+}
+
+/***********************************************/
+
+func (t Time) SecondOfWeek() (sow float64) {
+	_, sow = t.WeekSow()
+	return
+}
+
+/***********************************************/
+
+func (t Time) MjdParts() (mjdInt int32, mjdDec float64) {
+	var leapVal int8 = 0
+	var leapTot int16 = 0
+	ordDec := t.ordDec
+	var maxSod int32
+	var sod float64
+
+	mjdInt = t.ordInt + _ORD0_MJD
+
+	for {
+		switch t.sys {
+		case TIME_SYS_UTC:
+			leapVal, leapTot = getLeapSec(mjdInt)
+		case TIME_SYS_GLONASST:
+			leapVal, leapTot = getLeapSec(mjdInt - 1)
+		}
+
+		sod = ordDec*float64(DAY2SECOND) - float64(leapTot)
+		maxSod = int32(DAY2SECOND) + int32(leapVal)
+
+		if sod < -TIME_EPSILON {
+			mjdInt--
+			ordDec += 1
+		} else if sod > float64(maxSod)-TIME_EPSILON {
+			mjdInt++
+			ordDec -= 1
+		} else {
+			break
+		}
+	}
+
+	if math.Abs(sod) < TIME_EPSILON {
+		sod = 0.0
+	}
+
+	mjdDec = sod / float64(maxSod)
+	return
+}
+
+/***********************************************/
+
+func (t Time) MjdInt() (mjdInt int32) {
+	mjdInt, _ = t.MjdParts()
+	return
+}
+
+/***********************************************/
+
+func (t Time) MjdDec() (mjdDec float64) {
+	_, mjdDec = t.MjdParts()
+	return
+}
+
+/***********************************************/
+
+func (t Time) Mjd() (mjd float64) {
+	mjdInt, mjdDec := t.MjdParts()
+	mjd = float64(mjdInt) + mjdDec
+	return
 }
 
 /***********************************************/
@@ -746,355 +1031,6 @@ func (t Time) Format(format string) string {
 	}
 
 	return result
-}
-
-/***********************************************/
-
-func (t Time) Sys() TimeSys {
-	return t.sys
-}
-
-/***********************************************/
-
-func (t Time) Ordinal() (ordInt int32, ordDec float64) {
-	ordInt = t.ordInt
-	ordDec = t.ordDec
-
-	if math.Abs(ordDec*float64(DAY2SECOND)) < TIME_EPSILON {
-		ordDec = 0.0
-	}
-
-	return
-}
-
-/***********************************************/
-
-func (t Time) OrdInt() int32 {
-	return t.ordInt
-}
-
-/***********************************************/
-
-func (t Time) OrdDec() float64 {
-	ordDec := t.ordDec
-
-	if math.Abs(ordDec*float64(DAY2SECOND)) < TIME_EPSILON {
-		ordDec = 0.0
-	}
-
-	return ordDec
-}
-
-/***********************************************/
-
-func (t Time) OrdTotal() float64 {
-	ordDec := t.ordDec
-
-	if math.Abs(ordDec*float64(DAY2SECOND)) < TIME_EPSILON {
-		ordDec = 0.0
-	}
-
-	return float64(t.ordInt) + ordDec
-}
-
-/***********************************************/
-
-func (t Time) DateTime() (year int32, month, day, hour, minute uint8, second float64) {
-	mjd := t.ordInt - 1 + _MJD_ORD1
-	var leapVal int8 = 0
-	var leapTot int16 = 0
-	ordInt := t.ordInt
-	ordDec := t.ordDec
-	var sod float64
-	var maxSod int32
-
-	for {
-		switch t.sys {
-		case TIME_SYS_UTC:
-			leapVal, leapTot = getLeapSec(mjd)
-		case TIME_SYS_GLONASST:
-			leapVal, leapTot = getLeapSec(mjd - 1)
-		}
-
-		maxSod = int32(DAY2SECOND) + int32(leapVal)
-		sod = ordDec*float64(DAY2SECOND) - float64(leapTot)
-
-		if sod < -TIME_EPSILON {
-			mjd--
-			ordInt--
-			ordDec += 1
-		} else if sod > float64(maxSod)-TIME_EPSILON {
-			mjd++
-			ordInt++
-			ordDec -= 1
-		} else {
-			break
-		}
-	}
-
-	year, month, day = ord2ymd(ordInt)
-
-	hour = 0
-	var i uint8
-
-	for i = 0; i < DAY2HOUR; i++ {
-		leapTot = 0
-
-		if t.sys == TIME_SYS_UTC && i == 23 {
-			leapTot = int16(leapVal)
-		} else if t.sys == TIME_SYS_GLONASST && i == 2 {
-			leapTot = int16(leapVal)
-		}
-
-		hour = i
-
-		if sod-float64(HOUR2SECOND)-float64(leapTot) < -TIME_EPSILON {
-			break
-		}
-
-		sod -= float64(HOUR2SECOND) + float64(leapTot)
-	}
-
-	minute = 0
-
-	for i = 0; i < HOUR2MINUTE; i++ {
-		leapTot = 0
-
-		if t.sys == TIME_SYS_UTC && hour == 23 && i == 59 {
-			leapTot = int16(leapVal)
-		} else if t.sys == TIME_SYS_GLONASST && hour == 2 && i == 59 {
-			leapTot = int16(leapVal)
-		}
-
-		minute = i
-
-		if sod-float64(MINUTE2SECOND)-float64(leapTot) < -TIME_EPSILON {
-			break
-		}
-
-		sod -= float64(MINUTE2SECOND) + float64(leapTot)
-	}
-
-	second = sod
-
-	if math.Abs(second) < TIME_EPSILON {
-		second = 0.0
-	}
-
-	return
-}
-
-/***********************************************/
-
-func (t Time) Date() (year int32, month, day uint8) {
-	year, month, day, _, _, _ = t.DateTime()
-	return
-}
-
-/***********************************************/
-
-func (t Time) Time() (hour, minute uint8, second float64) {
-	_, _, _, hour, minute, second = t.DateTime()
-	return
-}
-
-/***********************************************/
-
-func (t Time) Year() (year int32) {
-	year, _, _, _, _, _ = t.DateTime()
-	return year
-}
-
-/***********************************************/
-
-func (t Time) Month() (month uint8) {
-	_, month, _, _, _, _ = t.DateTime()
-	return
-}
-
-/***********************************************/
-
-func (t Time) Day() (day uint8) {
-	_, _, day, _, _, _ = t.DateTime()
-	return
-}
-
-/***********************************************/
-
-func (t Time) Hour() (hour uint8) {
-	_, _, _, hour, _, _ = t.DateTime()
-	return
-}
-
-/***********************************************/
-
-func (t Time) Minute() (minute uint8) {
-	_, _, _, _, minute, _ = t.DateTime()
-	return
-}
-
-/***********************************************/
-
-func (t Time) Second() (second float64) {
-	_, _, _, _, _, second = t.DateTime()
-	return
-}
-
-/***********************************************/
-
-func (t Time) YearDoySod() (year int32, doy uint16, sod float64) {
-	mjd := t.ordInt - 1 + _MJD_ORD1
-	var leapVal int8 = 0
-	var leapTot int16 = 0
-	ordInt := t.ordInt
-	ordDec := t.ordDec
-	var maxSod int32
-
-	for {
-		switch t.sys {
-		case TIME_SYS_UTC:
-			leapVal, leapTot = getLeapSec(mjd)
-		case TIME_SYS_GLONASST:
-			leapVal, leapTot = getLeapSec(mjd - 1)
-		}
-
-		maxSod = int32(DAY2SECOND) + int32(leapVal)
-		sod = ordDec*float64(DAY2SECOND) - float64(leapTot)
-
-		if sod < -TIME_EPSILON {
-			mjd--
-			ordInt--
-			ordDec += 1
-		} else if sod > float64(maxSod)-TIME_EPSILON {
-			mjd++
-			ordInt++
-			ordDec -= 1
-		} else {
-			break
-		}
-	}
-
-	year, _, _ = ord2ymd(ordInt)
-	doy = uint16(ordInt - ymd2ord(year, 1, 1) + 1)
-
-	if math.Abs(sod) < TIME_EPSILON {
-		sod = 0.0
-	}
-
-	return
-}
-
-/***********************************************/
-
-func (t Time) DayOfYear() (doy uint16) {
-	_, doy, _ = t.YearDoySod()
-	return
-}
-
-/***********************************************/
-
-func (t Time) SecondOfDay() (sod float64) {
-	_, _, sod = t.YearDoySod()
-	return
-}
-
-/***********************************************/
-
-func (t Time) WeekSow() (week int32, sow float64) {
-	var dt Time
-
-	switch t.sys {
-	case TIME_SYS_NONE:
-		dt = t
-	case TIME_SYS_GPST:
-		dt = t.Sub(TIME_GPST0)
-	case TIME_SYS_BDT:
-		dt = t.Sub(TIME_BDT0)
-	case TIME_SYS_GST:
-		dt = t.Sub(TIME_GST0)
-	default:
-		panic(fmt.Sprintf("week/sow are not defined for '%s'", TimeSys2Name[t.sys]))
-	}
-
-	week = dt.ordInt / int32(WEEK2DAY)
-	sow = (float64(dt.ordInt%int32(WEEK2DAY)) + dt.ordDec) * float64(DAY2SECOND)
-
-	if math.Abs(sow) < TIME_EPSILON {
-		sow = 0.0
-	}
-
-	return
-}
-
-/***********************************************/
-
-func (t Time) Week() (week int32) {
-	week, _ = t.WeekSow()
-	return
-}
-
-/***********************************************/
-
-func (t Time) DayOfWeek() (dow uint8) {
-	_, sow := t.WeekSow()
-	dow = uint8(sow * float64(SECOND2DAY))
-	return
-}
-
-/***********************************************/
-
-func (t Time) SecondOfWeek() (sow float64) {
-	_, sow = t.WeekSow()
-	return
-}
-
-/***********************************************/
-
-func (t Time) Mjd() (mjdInt int32, mjdDec float64) {
-	var leapVal int8 = 0
-	var leapTot int16 = 0
-	ordDec := t.ordDec
-	var maxSod int32
-	var sod float64
-
-	mjdInt = t.ordInt - 1 + _MJD_ORD1
-
-	for {
-		switch t.sys {
-		case TIME_SYS_UTC:
-			leapVal, leapTot = getLeapSec(mjdInt)
-		case TIME_SYS_GLONASST:
-			leapVal, leapTot = getLeapSec(mjdInt - 1)
-		}
-
-		sod = ordDec*float64(DAY2SECOND) - float64(leapTot)
-		maxSod = int32(DAY2SECOND) + int32(leapVal)
-
-		if sod < -TIME_EPSILON {
-			mjdInt--
-			ordDec += 1
-		} else if sod > float64(maxSod)-TIME_EPSILON {
-			mjdInt++
-			ordDec -= 1
-		} else {
-			break
-		}
-	}
-
-	if math.Abs(sod) < TIME_EPSILON {
-		sod = 0.0
-	}
-
-	mjdDec = sod / float64(maxSod)
-	return
-}
-
-/***********************************************/
-
-func (t Time) MjdTotal() (mjd float64) {
-	mjdInt, mjdDec := t.Mjd()
-	mjd = float64(mjdInt) + mjdDec
-	return
 }
 
 /***********************************************/
