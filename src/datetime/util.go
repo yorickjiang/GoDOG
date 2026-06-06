@@ -69,8 +69,6 @@ func ord2ymd(ord int32) (year int32, month, day uint8) {
 	var di4y int32 = 4*365 + 1
 	var di100y int32 = 25*di4y - 1
 	var di400y int32 = 4*di100y + 1
-
-	var n400, n100, n4, n1 int32
 	var refYear int32 = _ORD0_YEAR/400*400 + 1 // The year just after the nearest year divisible by 400 before 'year'
 
 	if _ORD0_YEAR < 0 {
@@ -83,6 +81,8 @@ func ord2ymd(ord int32) (year int32, month, day uint8) {
 	if isLeapYear(_ORD0_YEAR) && _ORD0_MONTH > 2 {
 		ord++
 	}
+
+	var n400, n100, n4, n1 int32
 
 	if ord <= 0 {
 		n400 = (1-ord)/(400*365+97) + 1
@@ -147,48 +147,6 @@ func getLeapSec(mjd int32) (value int8, total int16) {
 	}
 
 	return
-}
-
-/***********************************************/
-
-func fromTAI(t *Time, sys TimeSys) {
-	switch sys {
-	case TIME_SYS_TT:
-		t.SubEq(Seconds2Time(DELTA_TAI_TT))
-	case TIME_SYS_UTC:
-		t.SubEq(Seconds2Time(DELTA_TAI_UTC))
-	case TIME_SYS_GPST:
-		t.SubEq(Seconds2Time(DELTA_TAI_GPST))
-	case TIME_SYS_GLONASST:
-		t.SubEq(Seconds2Time(DELTA_TAI_UTC - DELTA_GLOT_UTC))
-	case TIME_SYS_BDT:
-		t.SubEq(Seconds2Time(DELTA_TAI_BDT))
-	case TIME_SYS_GST:
-		t.SubEq(Seconds2Time(DELTA_TAI_GST))
-	}
-
-	t.sys = sys
-}
-
-/***********************************************/
-
-func toTAI(t *Time) {
-	switch t.sys {
-	case TIME_SYS_TT:
-		t.AddEq(Seconds2Time(DELTA_TAI_TT))
-	case TIME_SYS_UTC:
-		t.AddEq(Seconds2Time(DELTA_TAI_UTC))
-	case TIME_SYS_GPST:
-		t.AddEq(Seconds2Time(DELTA_TAI_GPST))
-	case TIME_SYS_GLONASST:
-		t.AddEq(Seconds2Time(DELTA_TAI_UTC - DELTA_GLOT_UTC))
-	case TIME_SYS_BDT:
-		t.AddEq(Seconds2Time(DELTA_TAI_BDT))
-	case TIME_SYS_GST:
-		t.AddEq(Seconds2Time(DELTA_TAI_GST))
-	}
-
-	t.sys = TIME_SYS_TAI
 }
 
 /***********************************************/

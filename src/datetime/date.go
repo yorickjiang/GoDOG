@@ -59,7 +59,7 @@ func YearDoy2Date(year int32, doy uint16) Date {
 /***********************************************/
 
 func Mjd2Date(mjd int32) Date {
-	return Date{mjd - _ORD0_MJD + 1}
+	return Date{mjd - _ORD0_MJD}
 }
 
 /***********************************************/
