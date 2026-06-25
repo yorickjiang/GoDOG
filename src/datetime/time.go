@@ -567,7 +567,7 @@ func (t Time) DateTime() (year int32, month, day, hour, minute uint8, second flo
 	year, month, day = ord2ymd(ordInt)
 	hour = 0
 
-	for i := range DAY2HOUR {
+	for i := uint8(0); i < DAY2HOUR; i++ {
 		leapTot = 0
 
 		if t.sys == TIME_SYS_UTC && i == 23 {
@@ -587,7 +587,7 @@ func (t Time) DateTime() (year int32, month, day, hour, minute uint8, second flo
 
 	minute = 0
 
-	for i := range HOUR2MINUTE {
+	for i := uint8(0); i < HOUR2MINUTE; i++ {
 		leapTot = 0
 
 		if t.sys == TIME_SYS_UTC && hour == 23 && i == 59 {

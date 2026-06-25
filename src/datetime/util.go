@@ -32,7 +32,7 @@ func ymd2ord(year int32, month, day uint8) int32 {
 
 	var refYear int32 = year/400*400 + 1 // The year just after the nearest year divisible by 400 before 'year'
 
-	if year < 0 {
+	if year < 0 || year%400 == 0 {
 		refYear -= 400
 	}
 
@@ -48,7 +48,7 @@ func ymd2ord(year int32, month, day uint8) int32 {
 	var ord int32 = int32(dby) + int32(dbm) + int32(day)
 	var refYear0 int32 = _ORD0_YEAR/400*400 + 1 // The year just after the nearest year divisible by 400 before 'year'
 
-	if _ORD0_YEAR < 0 {
+	if _ORD0_YEAR < 0 || _ORD0_YEAR%400 == 0 {
 		refYear0 -= 400
 	}
 
@@ -71,7 +71,7 @@ func ord2ymd(ord int32) (year int32, month, day uint8) {
 	var di400y int32 = 4*di100y + 1
 	var refYear int32 = _ORD0_YEAR/400*400 + 1 // The year just after the nearest year divisible by 400 before 'year'
 
-	if _ORD0_YEAR < 0 {
+	if _ORD0_YEAR < 0 || _ORD0_YEAR%400 == 0 {
 		refYear -= 400
 	}
 
